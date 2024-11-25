@@ -24,8 +24,8 @@ class RunSamtoolsCommands:
         return cls._run_subprocess(['samtools', 'flagstat', fpath])
 
     @classmethod
-    def get_samtools_stats_output(cls, fpath):
-        return cls._run_subprocess(['samtools', 'stats', fpath])
+    def get_samtools_stats_output(cls, fpath, frefgenome):
+        return cls._run_subprocess(['samtools', 'stats', '--reference', frefgenome, fpath])
 
     @classmethod
     def get_samtools_version_output(cls):
@@ -42,10 +42,10 @@ class HandleSamtoolsStats:
 
 
     @classmethod
-    def _generate_stats(cls, data_fpath):
+    def _generate_stats(cls, data_fpath, data_frefgenome):
         if not data_fpath or not os.path.isfile(data_fpath):
             raise ValueError("Can't generate stats from a non-existing file: %s" % str(data_fpath))
-        return RunSamtoolsCommands.get_samtools_stats_output(data_fpath)
+        return RunSamtoolsCommands.get_samtools_stats_output(data_fpath, data_frefgenome)
 
 
     @classmethod
@@ -55,15 +55,15 @@ class HandleSamtoolsStats:
         return False
 
     @classmethod
-    def fetch_stats(cls, fpath, stats_fpath):
+    def fetch_stats(cls, fpath, frefgenome, stats_fpath):
         if not fpath or not os.path.isfile(fpath):
             raise ValueError("You need to give a valid file path if you want the stats")
         if os.path.isfile(stats_fpath) and not cls._is_stats_file_older_than_data(fpath, stats_fpath) and \
                 utils.can_read_file(stats_fpath):
-            stats = HandleSamtoolsStats._get_stats(stats_fpath)
+            stats = HandleSamtoolsStats._get_stats(stats_fpath, )
             logging.info("Reading stats from file %s" % stats_fpath)
         else:
-            stats = HandleSamtoolsStats._generate_stats(fpath)
+            stats = HandleSamtoolsStats._generate_stats(fpath, frefgenome)
             logging.info("Generating stats for file %s" % fpath)
             if os.path.isfile(stats_fpath) and cls._is_stats_file_older_than_data(fpath, stats_fpath):
                 logging.warning("The stats file is older than the actual file, you need to remove/update it. "
@@ -177,13 +177,17 @@ class CompareStatsForFiles:
 
 
     @classmethod
-    def compare_bam_and_cram_by_statistics(cls, bam_path, cram_path):
+    def compare_bam_and_cram_by_statistics(cls, bam_path, bam_refgenome, cram_path, cram_refgenome):
         errors = []
         # Check that it's a valid file path
         if not bam_path or (not utils.is_irods_path(bam_path) and not os.path.isfile(bam_path)):
             errors.append("The BAM file path: %s is not valid" % bam_path)
+        if not bam_refgenome or (not utils.is_irods_path(bam_refgenome) and not os.path.isfile(bam_refgenome)):
+            errors.append("The BAM file path: %s is not valid" % bam_refgenome)
         if not cram_path or (not utils.is_irods_path(cram_path) and not os.path.isfile(cram_path)):
             errors.append("The CRAM file path:%s is not valid" % cram_path)
+        if not cram_refgenome or (not utils.is_irods_path(cram_refgenome) and not os.path.isfile(cram_refgenome)):
+            errors.append("The CRAM file path:%s is not valid" % cram_refgenome)
         if errors:
             logging.error("There are errors with the file paths you provided: %s" % errors)
             return errors
@@ -191,8 +195,12 @@ class CompareStatsForFiles:
         # Check that the files are readable by me
         if not utils.is_irods_path(bam_path) and not utils.can_read_file(bam_path):
             errors.append("Can't read file %s" % bam_path)
+        if not utils.is_irods_path(bam_refgenome) and not utils.can_read_file(bam_refgenome):
+            errors.append("Can't read file %s" % bam_refgenome)
         if not utils.is_irods_path(cram_path) and not utils.can_read_file(cram_path):
             errors.append("Can't read file %s" % cram_path)
+        if not utils.is_irods_path(cram_refgenome) and not utils.can_read_file(cram_refgenome):
+            errors.append("Can't read file %s" % cram_refgenome)
         if errors:
             logging.error("There are problems reading the files: %s" % errors)
             return errors
@@ -240,12 +248,12 @@ class CompareStatsForFiles:
         stats_fpath_c = cram_path + ".stats"
         stats_b, stats_c = None, None
         try:
-            stats_b = HandleSamtoolsStats.fetch_stats(bam_path, stats_fpath_b)
+            stats_b = HandleSamtoolsStats.fetch_stats(bam_path, bam_refgenome, stats_fpath_b)
         except (ValueError, RuntimeError) as e:
             errors.append(str(e))
 
         try:
-            stats_c = HandleSamtoolsStats.fetch_stats(cram_path, stats_fpath_c)
+            stats_c = HandleSamtoolsStats.fetch_stats(cram_path, cram_refgenome, stats_fpath_c)
         except (ValueError, RuntimeError) as e:
             errors.append(str(e))
 
