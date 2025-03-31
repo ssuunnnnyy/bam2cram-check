@@ -29,7 +29,9 @@ from checks import utils
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('-b', help="File path to the BAM file", required=True)
+    parser.add_argument('-input_refgenome', help="File path to the reference genome for the input BAM/CRAM file", required=True)
     parser.add_argument('-c', help="File path to the CRAM file", required=True)
+    parser.add_argument('-output_refgenome', help="File path to the reference genome for the compressed BAM/CRAM file", required=True)
     parser.add_argument('-e', help="File path to the error file", required=False)
     parser.add_argument('--log', help="File path to the log file", required=False)
     parser.add_argument('-v', action='count')
@@ -44,10 +46,16 @@ def main():
     logging.basicConfig(level=log_level, format='%(levelname)s - %(asctime)s %(message)s', filename=log_file)
     if args.b and args.c:
         bam_path = args.b
+        bam_refgenome = args.input_refgenome
         cram_path = args.c
+        cram_refgenome = args.output_refgenome
 
         if not utils.is_irods_path(bam_path) and not os.path.isfile(bam_path):
             logging.error("This is not a file path: %s" % bam_path)
+            #sys.exit(1)
+            raise ValueError("This is not a file path: %s")
+        if bam_path.endswith('.cram') and not (utils.is_irods_path(bam_refgenome) or os.path.isfile(bam_refgenome)):
+            logging.error("The reference genome for the first file has some problem: %s" % bam_refgenome)
             #sys.exit(1)
             raise ValueError("This is not a file path: %s")
         if not utils.is_irods_path(cram_path) and not os.path.isfile(cram_path):
@@ -55,7 +63,12 @@ def main():
             #sys.exit(1)
             raise ValueError("This is not a file path: %s")
 
-        errors = CompareStatsForFiles.compare_bam_and_cram_by_statistics(bam_path, cram_path)
+        if not utils.is_irods_path(cram_refgenome) and not os.path.isfile(cram_refgenome):
+            logging.error("This is not a file path: %s" % cram_refgenome)
+            #sys.exit(1)
+            raise ValueError("This is not a file path: %s")
+
+        errors = CompareStatsForFiles.compare_bam_and_cram_by_statistics(bam_path, bam_refgenome, cram_path, cram_refgenome)
         if errors:
             if args.e:
                 err_f = open(args.e, 'w')
